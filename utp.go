@@ -9,6 +9,8 @@ package utp
 import "C"
 
 import (
+  "github.com/jbenet/go-sockaddr"
+  "net"
   "sync"
   "syscall"
   "unsafe"
@@ -63,8 +65,11 @@ func (c *UTPContext) GetOption(opt int) int {
 func (c *UTPContext) ProcessUDP (buf []byte, len int,
     to *syscall.RawSockaddr, tolen int) int {
 
-  return int(C.utp_process_udp(c.raw, (*C.byte)(unsafe.Pointer(&buf[0])),
-    C.size_t(len), (*C.struct_sockaddr)(to), C.socklen_t(tolen)))
+
+  bufptr := (*C.byte)(unsafe.Pointer(&buf[0]))
+  adrptr := (*C.struct_sockaddr)(unsafe.Pointer(to))
+  return int(C.utp_process_udp(c.raw, bufptr, C.size_t(len),
+    adrptr, C.socklen_t(tolen)))
 }
 
 func (c *UTPContext) CheckTimeouts() {
@@ -76,42 +81,87 @@ func (c *UTPContext) IssueDeferredAcks() {
 }
 
 type ContextStats struct {
-  recv [5]uint32
-  send [5]uint32
+  Recv [5]uint32
+  Send [5]uint32
 }
 
 func (c *UTPContext) GetContextStats() *ContextStats {
-  cs := C.utp_get_context_stats(c.raw)
-  return &ContextStats{
-    recv: [5]uint32(cs._nraw_recv),
-    send: [5]uint32(cs._nraw_send),
+  ccs := C.utp_get_context_stats(c.raw)
+  gcs := &ContextStats{}
+
+  for i := 0; i < 5; i++ {
+    gcs.Recv[i] = uint32((*ccs)._nraw_recv[i])
+    gcs.Send[i] = uint32((*ccs)._nraw_recv[i])
   }
+
+  return gcs
 }
 
-func (c *UTPContext) CreateSocket() *UTPSocket {
+// UTPSocket type, tracks individual UTP connections
+type UTPSocket struct {
+  ctx *UTPContext
+  raw *C.utp_socket
+  lock sync.Mutex
+}
+
+func NewUTPSocket(c *UTPContext) *UTPSocket {
   return &UTPSocket{
+    ctx: c,
     raw: C.utp_create_socket(c.raw),
     lock: sync.Mutex{},
   }
 }
 
-// UTPSocket type, tracks individual UTP connections
-type UTPSocket struct {
-  raw *C.utp_socket
-  lock sync.Mutex
-}
-
 // void*			utp_set_userdata				(utp_socket *s, void *userdata);
 // void*			utp_get_userdata				(utp_socket *s);
 
-/*int				utp_setsockopt					(utp_socket *s, int opt, int val);
-int				utp_getsockopt					(utp_socket *s, int opt);
-int				utp_connect						(utp_socket *s, const struct sockaddr *to, socklen_t tolen);
-ssize_t			utp_write						(utp_socket *s, void *buf, size_t count);
-ssize_t			utp_writev						(utp_socket *s, struct utp_iovec *iovec, size_t num_iovecs);
-int				utp_getpeername					(utp_socket *s, struct sockaddr *addr, socklen_t *addrlen);
-void			utp_read_drained				(utp_socket *s);
-int				utp_get_delays					(utp_socket *s, uint32 *ours, uint32 *theirs, uint32 *age);
-utp_socket_stats* utp_get_stats					(utp_socket *s);
-utp_context*	utp_get_context					(utp_socket *s);
-void			utp_close						(utp_socket *s);*/
+
+func (s *UTPSocket) SetSockopt(opt, val int) int {
+  return int(C.utp_setsockopt(s.raw, C.int(opt), C.int(val)))
+}
+
+func (s *UTPSocket) GetSockopt(opt int) int {
+  return int(C.utp_getsockopt(s.raw, C.int(opt)))
+}
+
+func (s *UTPSocket) Connect(addr *UTPAddr) (int, error) {
+// func (s *UTPSocket) Connect(to *syscall.RawSockaddr, tolen int) int {
+
+  if addr == nil {
+    return 0, net.InvalidAddrError("No address given.")
+  }
+
+  sa, err := addr.Sockaddr()
+  if err != nil {
+    return 0, err
+  }
+
+  rsa, err := sockaddr.NewRawSockaddr(&sa)
+  if err != nil {
+    return 0, err
+  }
+
+  ptr := (*C.struct_sockaddr)(unsafe.Pointer(&rsa.Raw))
+  ret := int(C.utp_connect(s.raw, ptr, C.socklen_t(rsa.Len)))
+  return ret, nil
+}
+
+func (s *UTPSocket) Write(buf []byte, len int) int {
+  ptr := unsafe.Pointer(&buf[0])
+  return int(C.utp_write(s.raw, ptr, C.size_t(len)))
+}
+
+func (s *UTPSocket) Close() {
+  C.utp_close(s.raw)
+}
+
+func (s *UTPSocket) Context() *UTPContext {
+  return s.ctx
+}
+
+
+// int				utp_getpeername					(utp_socket *s, struct sockaddr *addr, socklen_t *addrlen);
+// void			utp_read_drained				(utp_socket *s);
+// int				utp_get_delays					(utp_socket *s, uint32 *ours, uint32 *theirs, uint32 *age);
+// utp_socket_stats* utp_get_stats					(utp_socket *s);
+// utp_context*	utp_get_context					(utp_socket *s);

@@ -10,7 +10,7 @@ install: build
 	go install
 
 watch:
-	-make install
+	-make build
 	@echo "[watching *.go for recompilation]"
 	# for portability, use watchmedo -- pip install watchmedo
 	@watchmedo shell-command --patterns="*.go;" --recursive \

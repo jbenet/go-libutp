@@ -5,54 +5,17 @@
 
 package utp
 
-import (
+/*import (
   "net"
   "strconv"
 )
 
-// ipEmptyString is like ip.String except that it returns
-// an empty string when ip is unset.
-// Unexported item from golang/pkg/net/ip.go
-func ipEmptyString(ip net.IP) string {
-	if len(ip) == 0 {
-		return ""
-	}
-	return ip.String()
-}
 
 // This file implements UTPAddr and UTPConn,
 // to match net.UDPAddr and net.UDPConn
 type UTPConn struct {
   context *UTPContext
   socket *UTPSocket
-}
-
-// UTPAddr represents the address of a uTP end point.
-type UTPAddr struct {
-	IP   net.IP
-	Port int
-	Zone string // IPv6 scoped addressing zone
-}
-
-// Network returns the address's network name, "utp".
-func (a *UTPAddr) Network() string { return "utp" }
-
-func (a *UTPAddr) String() string {
-	if a == nil {
-		return "<nil>"
-	}
-	ip := ipEmptyString(a.IP)
-	if a.Zone != "" {
-		return net.JoinHostPort(ip+"%"+a.Zone, strconv.Itoa(a.Port))
-	}
-	return net.JoinHostPort(ip, strconv.Itoa(a.Port))
-}
-
-func (a *UTPAddr) toAddr() net.Addr {
-	if a == nil {
-		return nil
-	}
-	return a
 }
 
 
@@ -62,7 +25,7 @@ func newUTPConn(ctx *UTPContext, sock *UTPSocket) *UTPConn {
     socket: sock,
   }
 }
-
+*/
 
 /*func DialUTP(net string, laddr, raddr *UTPAddr) (*UTPConn, error) {
 
