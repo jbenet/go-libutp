@@ -136,13 +136,13 @@ func (s *UTPSocket) Connect(addr *UTPAddr) (int, error) {
     return 0, err
   }
 
-  rsa, err := sockaddr.NewRawSockaddr(&sa)
+  rsa, rlen, err := sockaddr.SockaddrToAny(sa)
   if err != nil {
     return 0, err
   }
 
-  ptr := (*C.struct_sockaddr)(unsafe.Pointer(&rsa.Raw))
-  ret := int(C.utp_connect(s.raw, ptr, C.socklen_t(rsa.Len)))
+  ptr := (*C.struct_sockaddr)(unsafe.Pointer(rsa))
+  ret := int(C.utp_connect(s.raw, ptr, C.socklen_t(rlen)))
   return ret, nil
 }
 
